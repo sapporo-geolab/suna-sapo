@@ -71,17 +71,33 @@
             skipEmptyLines: true,
             complete: (results) => {
                 const features = results.data.map(row => {
-                    // 「緯度経度」列を分割して数値化
-                    const coords = row['緯度経度'].split(',').map(s => parseFloat(s.trim()));
-                    // YouTube URLからID抽出
-                    const videoId = row['URL'].includes('v=') ? row['URL'].split('v=')[1].split('&')[0] : '';
+                    // 緯度経度の解析
+                    const latLngStr = row['緯度経度'] || "";
+                    const coords = latLngStr.split(',').map(s => parseFloat(s.trim()));
                     
-                    return {
-                        'type': 'Feature',
-                        'properties': { 'title': `ライブカメラ No.${row['No']}`, 'videoId': videoId },
-                        'geometry': { 'type': 'Point', 'coordinates': [coords[1], coords[0]] } // [経度, 緯度]
-                    };
-                });
+                    // YouTube VideoIDの抽出
+                    const videoUrl = row['URL'] || "";
+                    const videoId = videoUrl.includes('v=') ? videoUrl.split('v=')[1].split('&')[0] : "";
+                    
+                    // タイトル設定 (Noを使用)
+                    const cameraNo = row['No'] || "??";
+
+                    // 座標が有効な場合のみFeatureを作成
+                    if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                        return {
+                            'type': 'Feature',
+                            'properties': { 
+                                'title': `ライブカメラ No.${cameraNo}`, 
+                                'videoId': videoId 
+                            },
+                            'geometry': { 
+                                'type': 'Point', 
+                                'coordinates': [coords[1], coords[0]] // [経度, 緯度] の順
+                            }
+                        };
+                    }
+                    return null;
+                }).filter(f => f !== null);
 
                 map.addSource('live-cameras', {
                     'type': 'geojson',
@@ -90,7 +106,11 @@
 
                 map.addLayer({
                     'id': 'camera-layer', 'type': 'symbol', 'source': 'live-cameras', 'slot': 'top',
-                    'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.6, 'icon-allow-overlap': true }
+                    'layout': { 
+                        'icon-image': 'camera-custom', 
+                        'icon-size': 0.6, 
+                        'icon-allow-overlap': true 
+                    }
                 });
             }
         });
