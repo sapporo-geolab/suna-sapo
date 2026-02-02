@@ -36,15 +36,16 @@
 </div>
 
 <script>
-    // 1. 設定 (位置は南1東4を維持)
-    const camCoords = [141.36234657793966, 43.060337411964575];
+    // 1. 設定
+    const cameraCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/3d64bf54acce4d6095738dc1383cfb57/raw/a7f3c44bb88006391b84194e1cf694d54b4b27c2/livecamera.csv';
+    const initialCenter = [141.3508, 43.0645]; // 札幌中心部
     mapboxgl.accessToken = 'pk.eyJ1Ijoic2FwcG9yby1nZW9sYWIiLCJhIjoiY21rNnBtdnllMHY0ZDNmcHdudWxheXh2YyJ9.XmcyBM52az-vYC6Tigqduw';
 
     const map = new mapboxgl.Map({ 
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
-        center: camCoords, 
-        zoom: 16, 
+        center: initialCenter, 
+        zoom: 14, 
         pitch: 45,
         attributionControl: false 
     });
@@ -58,33 +59,46 @@
     });
 
     map.on('load', async () => {
-        // --- A. ライブカメラの設定 (テスト用動画ID: LsMdW3ktJNQ) ---
+        // --- A. ライブカメラの設定 (Gist CSVから読み込み) ---
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="black" stroke="cyan" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="white"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-        map.addSource('live-cameras', {
-            'type': 'geojson',
-            'data': {
-                'type': 'FeatureCollection',
-                'features': [{
-                    'type': 'Feature',
-                    'properties': { 'title': 'テスト中ライブカメラ', 'videoId': 'LsMdW3ktJNQ' },
-                    'geometry': { 'type': 'Point', 'coordinates': camCoords }
-                }]
-            }
-        });
+        Papa.parse(cameraCsvUrl, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const features = results.data.map(row => {
+                    // 「緯度経度」列を分割して数値化
+                    const coords = row['緯度経度'].split(',').map(s => parseFloat(s.trim()));
+                    // YouTube URLからID抽出
+                    const videoId = row['URL'].includes('v=') ? row['URL'].split('v=')[1].split('&')[0] : '';
+                    
+                    return {
+                        'type': 'Feature',
+                        'properties': { 'title': `ライブカメラ No.${row['No']}`, 'videoId': videoId },
+                        'geometry': { 'type': 'Point', 'coordinates': [coords[1], coords[0]] } // [経度, 緯度]
+                    };
+                });
 
-        map.addLayer({
-            'id': 'camera-layer', 'type': 'symbol', 'source': 'live-cameras', 'slot': 'top',
-            'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.7, 'icon-allow-overlap': true }
+                map.addSource('live-cameras', {
+                    'type': 'geojson',
+                    'data': { 'type': 'FeatureCollection', 'features': features }
+                });
+
+                map.addLayer({
+                    'id': 'camera-layer', 'type': 'symbol', 'source': 'live-cameras', 'slot': 'top',
+                    'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.6, 'icon-allow-overlap': true }
+                });
+            }
         });
 
         // --- B. 砂箱データの読み込み ---
         try {
-            const csvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
-            Papa.parse(csvUrl, {
+            const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
+            Papa.parse(sandboxCsvUrl, {
                 download: true, header: true, complete: async (res) => {
                     rawData = res.data;
                     const gistUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ef76bf0034584f3c6ee30d7489f7f427/raw/graphics.js';
@@ -103,7 +117,7 @@
         // --- C. インタラクション ---
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
-            map.flyTo({ center: f.geometry.coordinates, zoom: 18.5, pitch: 60 });
+            map.flyTo({ center: f.geometry.coordinates, zoom: 17, pitch: 60 });
             new mapboxgl.Popup({ maxWidth: '320px', className: 'live-camera-popup', offset: 30 })
                 .setLngLat(f.geometry.coordinates)
                 .setHTML(`
