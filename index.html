@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>すなサポ - ライブ・砂箱 安定版</title>
+    <title>テスト環境</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
@@ -17,8 +17,11 @@
         #loader-logo-img { max-width: 200px; }
         .info-panel { position: absolute; top: 15px; left: 15px; z-index: 1000; color: #333; font-family: sans-serif; text-shadow: 1px 1px 2px white; pointer-events: none; }
         #time-display { font-size: 24px; font-weight: bold; }
+        
+        /* ポップアップカスタマイズ */
         .live-camera-popup .mapboxgl-popup-content { background: #1a1a1a; color: #fff; border-radius: 12px; padding: 0; overflow: hidden; border: 1px solid #444; }
         .live-camera-popup .mapboxgl-popup-close-button { color: #fff; font-size: 20px; padding: 5px; z-index: 11; }
+        .yt-btn { display: block; background: #ff0000; color: white; text-align: center; padding: 10px; text-decoration: none; font-weight: bold; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -36,20 +39,29 @@
 </div>
 
 <script>
-    // 1. 設定 (カメラの位置を元の南1東4に固定)
-    const camCoords = [141.36234657793966, 43.060337411964575];
+    // 1. 設定
+    const initialCoords = [141.36234657793966, 43.060337411964575];
     mapboxgl.accessToken = 'pk.eyJ1Ijoic2FwcG9yby1nZW9sYWIiLCJhIjoiY21rbm4yOXE5MDdwNDNkczh5MnlqNnI4eCJ9.Utenu-9vEz56uGUETeWS1g';
 
     const map = new mapboxgl.Map({ 
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
-        center: camCoords, 
+        center: initialCoords, 
         zoom: 16, 
         pitch: 45,
         attributionControl: false 
     });
 
     let rawData = [], sandboxData = { type: 'FeatureCollection', features: [] };
+
+    // --- A. ライブカメラデータの配列管理 ---
+    const cameraData = [
+        { title: '創成川公園付近', videoId: 'CdesNZ150HE', coords: [141.36234657793966, 43.060337411964575] },
+        { title: '大通公園方面', videoId: 'I1kJB1jdGo0', coords: [141.3645, 43.0615] },
+        { title: 'テストカメラ3', videoId: '_qQFsKQ0A0I', coords: [141.3600, 43.0590] },
+        { title: 'テストカメラ4', videoId: '0fGNQXoGSnk', coords: [141.3650, 43.0595] },
+        { title: 'テストカメラ5', videoId: 'gaNLXSEUVRw', coords: [141.3585, 43.0620] }
+    ];
 
     map.on('style.load', () => {
         map.setConfigProperty('basemap', 'lightPreset', 'day');
@@ -58,22 +70,22 @@
     });
 
     map.on('load', async () => {
-        // --- A. ライブカメラの設定 (テスト用動画ID: LiGYF-f9eDY) ---
+        // --- ライブカメラアイコンの設定 ---
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="black" stroke="cyan" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="white"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
+        // 配列からGeoJSONを生成
+        const cameraFeatures = cameraData.map(cam => ({
+            'type': 'Feature',
+            'properties': { 'title': cam.title, 'videoId': cam.videoId },
+            'geometry': { 'type': 'Point', 'coordinates': cam.coords }
+        }));
+
         map.addSource('live-cameras', {
             'type': 'geojson',
-            'data': {
-                'type': 'FeatureCollection',
-                'features': [{
-                    'type': 'Feature',
-                    'properties': { 'title': 'テスト用ライブカメラ', 'videoId': 'LiGYF-f9eDY' },
-                    'geometry': { 'type': 'Point', 'coordinates': camCoords }
-                }]
-            }
+            'data': { 'type': 'FeatureCollection', 'features': cameraFeatures }
         });
 
         map.addLayer({
@@ -81,7 +93,7 @@
             'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.7, 'icon-allow-overlap': true }
         });
 
-        // --- B. 砂箱データの読み込み ---
+        // --- 砂箱データの読み込み ---
         try {
             const csvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
             Papa.parse(csvUrl, {
@@ -98,19 +110,22 @@
                     });
                 }
             });
-        } catch (e) { console.error("砂箱データの読み込みに失敗:", e); }
+        } catch (e) { console.error("砂箱読み込み失敗", e); }
 
-        // --- C. インタラクション ---
+        // --- インタラクション (クリックイベント) ---
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
+            const { title, videoId } = f.properties;
             map.flyTo({ center: f.geometry.coordinates, zoom: 18.5, pitch: 60 });
+            
             new mapboxgl.Popup({ maxWidth: '320px', className: 'live-camera-popup', offset: 30 })
                 .setLngLat(f.geometry.coordinates)
                 .setHTML(`
-                    <div style="padding:10px; font-weight:bold; font-size:14px; color:white; background:#333;">🎥 ${f.properties.title}</div>
+                    <div style="padding:10px; font-weight:bold; font-size:14px; color:white; background:#333;">🎥 ${title}</div>
                     <div style="width:100%; aspect-ratio:16/9; background:#000;">
-                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${f.properties.videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&origin=${window.location.origin}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                     </div>
+                    <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" class="yt-btn">YouTubeアプリで開く</a>
                 `).addTo(map);
         });
 
@@ -133,6 +148,4 @@
     }, 1000);
 </script>
 </body>
-
 </html>
-
