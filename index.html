@@ -16,48 +16,57 @@
         .info-panel { position: absolute; top: 15px; left: 15px; z-index: 1000; color: #333; font-family: sans-serif; text-shadow: 1px 1px 2px white; pointer-events: none; }
         #time-display { font-size: 24px; font-weight: bold; }
 
-        /* ホバー時の小さい吹き出し用スタイル */
-        .hover-popup .mapboxgl-popup-content {
-            background: rgba(0, 0, 0, 0.8);
+        /* --- ホバー時のミニ映像ポップアップ --- */
+        .hover-video-popup .mapboxgl-popup-content {
+            background: rgba(26, 26, 26, 0.9);
             color: #fff;
-            padding: 5px 10px;
-            font-size: 12px;
-            border-radius: 4px;
+            padding: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 180px; /* ミニサイズ */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
-        .hover-popup .mapboxgl-popup-tip { border-top-color: rgba(0, 0, 0, 0.8); }
+        .hover-video-title {
+            font-size: 10px;
+            padding: 4px 8px;
+            background: rgba(0,0,0,0.5);
+            text-align: center;
+        }
 
-        /* 画面下部に固定される大型ポップアップ */
-        .live-camera-popup {
+        /* --- 画面下部の大型メインポップアップ --- */
+        .live-camera-main-popup {
             position: fixed !important;
             top: auto !important;
-            bottom: 20px !important;
+            bottom: 30px !important;
             left: 50% !important;
             transform: translateX(-50%) !important;
             width: 90% !important;
-            max-width: 600px !important;
+            max-width: 500px !important;
             z-index: 10002;
         }
-        .live-camera-popup .mapboxgl-popup-content {
+        /* 吹き出しの三角(tip)を消す設定 */
+        .live-camera-main-popup .mapboxgl-popup-tip {
+            display: none !important;
+        }
+        .live-camera-main-popup .mapboxgl-popup-content {
             background: #1a1a1a;
             color: #fff;
             border-radius: 12px;
             padding: 0;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
         }
-        .live-camera-popup .mapboxgl-popup-close-button {
+        .live-camera-main-popup .mapboxgl-popup-close-button {
             color: #fff;
             font-size: 24px;
             padding: 10px;
             z-index: 11;
         }
         .popup-header {
-            padding: 12px 15px;
+            padding: 10px 15px;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 14px;
             background: #2a2a2a;
-            display: flex;
-            align-items: center;
         }
     </style>
 </head>
@@ -89,10 +98,16 @@
         attributionControl: false 
     });
 
-    let hoverPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'hover-popup', offset: 15 });
+    // ホバー用ポップアップ（映像入り）
+    let hoverPopup = new mapboxgl.Popup({ 
+        closeButton: false, 
+        closeOnClick: false, 
+        className: 'hover-video-popup', 
+        offset: 15 
+    });
 
     map.on('load', async () => {
-        // 白抜きのアイコンデザインに変更
+        // 白抜きアイコン（白背景に黒カメラ）
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="white" stroke="#333" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="#333"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
@@ -150,12 +165,20 @@
             }
         });
 
-        // ホバーで吹き出し表示
+        // --- ホバー時の挙動（ミニプレビュー） ---
         map.on('mouseenter', 'camera-layer', (e) => {
             map.getCanvas().style.cursor = 'pointer';
             const coordinates = e.features[0].geometry.coordinates.slice();
-            const title = e.features[0].properties.title;
-            hoverPopup.setLngLat(coordinates).setHTML(title).addTo(map);
+            const { title, videoId } = e.features[0].properties;
+
+            // ミニサイズの映像を吹き出しに埋め込む
+            hoverPopup.setLngLat(coordinates)
+                .setHTML(`
+                    <div class="hover-video-title">${title}</div>
+                    <div style="width:180px; aspect-ratio:16/9; background:#000;">
+                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1" frameborder="0"></iframe>
+                    </div>
+                `).addTo(map);
         });
 
         map.on('mouseleave', 'camera-layer', () => {
@@ -163,17 +186,23 @@
             hoverPopup.remove();
         });
 
-        // クリックで画面下部に大型表示
+        // --- クリック時の挙動（下部大型パネル） ---
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
+            const { title, videoId } = f.properties;
+            
+            // 下部パネル表示時はホバーを消す
+            hoverPopup.remove();
+
             map.flyTo({ center: f.geometry.coordinates, zoom: 17, pitch: 60 });
             
-            new mapboxgl.Popup({ className: 'live-camera-popup' })
+            // 下部パネル（三角なし）
+            new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom' })
                 .setLngLat(f.geometry.coordinates)
                 .setHTML(`
-                    <div class="popup-header">🎥 ${f.properties.title}</div>
+                    <div class="popup-header">🎥 ${title}</div>
                     <div style="width:100%; aspect-ratio:16/9; background:#000;">
-                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${f.properties.videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                     </div>
                 `).addTo(map);
         });
