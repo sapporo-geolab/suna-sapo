@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>テスト5</title>
+    <title>テスト6</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.1/mapbox-gl.js"></script>
@@ -24,7 +24,7 @@
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">最新の冬マップを構築中...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">冬のマップを構築中...</div>
 </div>
 
 <div id="map"></div>
@@ -41,49 +41,47 @@
 
     const map = new mapboxgl.Map({ 
         container: 'map', 
-        // 公式のバージョン指定URLを使う
-        style: 'mapbox://styles/mapbox/standard-v1', 
+        style: 'mapbox://styles/mapbox/standard', 
         center: initialCenter, 
         zoom: 15, 
         pitch: 60,
-        attributionControl: false,
-        // インスタンス作成時に冬の設定を注入
-        config: {
-            basemap: {
-                theme: 'winter',
-                lightPreset: 'day', // 夕方に見えないよう昼間に設定
-                show3dObjects: true
-            }
+        attributionControl: false
+    });
+
+    // スタイルの準備が整ってから冬仕様を適用（404エラーを防ぐため）
+    map.on('style.load', () => {
+        try {
+            // テーマを冬に、ライティングを昼に設定
+            map.setConfigProperty('basemap', 'theme', 'winter');
+            map.setConfigProperty('basemap', 'lightPreset', 'day');
+            
+            // 雪の空気感を出すフォグ
+            map.setFog({
+                'range': [0.5, 10],
+                'color': '#ffffff',
+                'high-color': '#eef2f5',
+                'space-color': '#ffffff',
+                'horizon-blend': 0.1
+            });
+        } catch (err) {
+            console.error("冬仕様の適用に失敗しました:", err);
         }
     });
 
-    map.on('style.load', () => {
-        // ロード後にも念押しで設定
-        map.setConfigProperty('basemap', 'theme', 'winter');
-        map.setFog({
-            'range': [0.5, 10],
-            'color': '#ffffff',
-            'high-color': '#eef2f5',
-            'space-color': '#eef2f5',
-            'horizon-blend': 0.1
-        });
-    });
-
     map.on('load', async () => {
-        // カメラアイコン追加
+        // アイコン画像（カメラ）
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="white" stroke="#333" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="#333"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-        // CSV: ライブカメラ
+        // カメラCSV
         Papa.parse(cameraCsvUrl, {
             download: true, header: true, skipEmptyLines: true,
             complete: (results) => {
                 const features = results.data.map(row => {
                     const dispTitle = row['タイトル'] || row['No'] || "不明";
-                    const latLngStr = row['緯度経度'] || "";
-                    const coords = latLngStr.split(',').map(s => parseFloat(s.trim()));
+                    const coords = (row['緯度経度'] || "").split(',').map(s => parseFloat(s.trim()));
                     const videoUrl = row['URL'] || "";
                     let videoId = "";
                     if (videoUrl.includes('v=')) videoId = videoUrl.split('v=')[1].split('&')[0];
@@ -100,7 +98,7 @@
             }
         });
 
-        // CSV: 砂箱
+        // 砂箱（3Dグラフィック）
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -113,14 +111,13 @@
             }
         });
 
-        // インタラクション
+        // ポップアップ制御
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
-            const { title, videoId } = f.properties;
             map.flyTo({ center: f.geometry.coordinates, zoom: 18, pitch: 70 });
-            new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom', closeButton: true })
+            new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom' })
                 .setLngLat(f.geometry.coordinates)
-                .setHTML(`<div class="popup-header">🎥 ${title}</div><div style="width:100%; aspect-ratio:16/9; background:#000;"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`)
+                .setHTML(`<div class="popup-header">🎥 ${f.properties.title}</div><div style="width:100%; aspect-ratio:16/9; background:#000;"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${f.properties.videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`)
                 .addTo(map);
         });
 
