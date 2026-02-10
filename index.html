@@ -24,7 +24,7 @@
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">冬のマップを構築中...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">冬の札幌を構築中...</div>
 </div>
 
 <div id="map"></div>
@@ -43,29 +43,25 @@
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
         center: initialCenter, 
-        zoom: 15, 
+        zoom: 15.5, 
         pitch: 60,
         attributionControl: false
     });
 
-    // スタイルの準備が整ってから冬仕様を適用（404エラーを防ぐため）
+    // スタイルがロードされた直後に「冬」を強制適用
     map.on('style.load', () => {
-        try {
-            // テーマを冬に、ライティングを昼に設定
-            map.setConfigProperty('basemap', 'theme', 'winter');
-            map.setConfigProperty('basemap', 'lightPreset', 'day');
-            
-            // 雪の空気感を出すフォグ
-            map.setFog({
-                'range': [0.5, 10],
-                'color': '#ffffff',
-                'high-color': '#eef2f5',
-                'space-color': '#ffffff',
-                'horizon-blend': 0.1
-            });
-        } catch (err) {
-            console.error("冬仕様の適用に失敗しました:", err);
-        }
+        // テーマを冬(winter)に、光を昼(day)に設定して白さを際立たせる
+        map.setConfigProperty('basemap', 'theme', 'winter');
+        map.setConfigProperty('basemap', 'lightPreset', 'day');
+        
+        // 雪の照り返しと空気感を出すための「フォグ」設定
+        map.setFog({
+            'range': [0.5, 10],
+            'color': '#ffffff',      // 真っ白な雪の反射色
+            'high-color': '#eef2f5', // 空の冷たい色
+            'space-color': '#ffffff',
+            'horizon-blend': 0.1
+        });
     });
 
     map.on('load', async () => {
@@ -75,7 +71,7 @@
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-        // カメラCSV
+        // CSV: ライブカメラ
         Papa.parse(cameraCsvUrl, {
             download: true, header: true, skipEmptyLines: true,
             complete: (results) => {
@@ -98,7 +94,7 @@
             }
         });
 
-        // 砂箱（3Dグラフィック）
+        // CSV: 砂箱（3Dグラフィックス）
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -111,7 +107,7 @@
             }
         });
 
-        // ポップアップ制御
+        // クリックイベント
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
             map.flyTo({ center: f.geometry.coordinates, zoom: 18, pitch: 70 });
