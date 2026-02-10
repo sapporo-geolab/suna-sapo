@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>テスト4</title>
+    <title>テスト5</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #fff; }
@@ -15,46 +15,16 @@
         #loader-logo-img { max-width: 200px; }
         .info-panel { position: absolute; top: 15px; left: 15px; z-index: 1000; color: #333; font-family: sans-serif; text-shadow: 1px 1px 2px white; pointer-events: none; }
         #time-display { font-size: 24px; font-weight: bold; }
-
-        .hover-video-popup .mapboxgl-popup-content {
-            background: rgba(26, 26, 26, 0.9);
-            color: #fff;
-            padding: 0;
-            border-radius: 8px;
-            overflow: hidden;
-            width: 180px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-        }
-        .hover-video-title { font-size: 10px; padding: 4px 8px; background: rgba(0,0,0,0.5); text-align: center; }
-
-        .live-camera-main-popup {
-            position: fixed !important;
-            top: auto !important;
-            bottom: 30px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            width: 90% !important;
-            max-width: 500px !important;
-            z-index: 10002;
-        }
+        .popup-header { padding: 10px 15px; font-weight: bold; font-size: 14px; background: #2a2a2a; color: #fff; }
+        .live-camera-main-popup .mapboxgl-popup-content { background: #1a1a1a; color: #fff; border-radius: 12px; padding: 0; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
         .live-camera-main-popup .mapboxgl-popup-tip { display: none !important; }
-        .live-camera-main-popup .mapboxgl-popup-content {
-            background: #1a1a1a;
-            color: #fff;
-            border-radius: 12px;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-        }
-        .live-camera-main-popup .mapboxgl-popup-close-button { color: #fff; font-size: 24px; padding: 10px; z-index: 11; }
-        .popup-header { padding: 10px 15px; font-weight: bold; font-size: 14px; background: #2a2a2a; }
     </style>
 </head>
 <body>
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">冬モードに切り替えています...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">最新の冬マップを構築中...</div>
 </div>
 
 <div id="map"></div>
@@ -71,49 +41,44 @@
 
     const map = new mapboxgl.Map({ 
         container: 'map', 
-        style: 'mapbox://styles/mapbox/standard', 
+        // 公式のバージョン指定URLを使う
+        style: 'mapbox://styles/mapbox/standard-v1', 
         center: initialCenter, 
-        zoom: 15.5, // 最初から木の変化が見えやすいズーム
+        zoom: 15, 
         pitch: 60,
-        attributionControl: false 
+        attributionControl: false,
+        // インスタンス作成時に冬の設定を注入
+        config: {
+            basemap: {
+                theme: 'winter',
+                lightPreset: 'day', // 夕方に見えないよう昼間に設定
+                show3dObjects: true
+            }
+        }
     });
 
-    // スタイルロード時に冬の設定を強制適用
     map.on('style.load', () => {
-        // テーマを冬に
+        // ロード後にも念押しで設定
         map.setConfigProperty('basemap', 'theme', 'winter');
-        // ライトを昼（Day）に固定し、雪の反射をイメージした明るさに
-        map.setConfigProperty('basemap', 'lightPreset', 'day');
-        
-        // 遠景だけでなく、手前まで白く霧（雪）を発生させる
         map.setFog({
-            'range': [-1, 2.5], 
-            'color': '#ffffff', 
-            'high-color': '#ffffff',
+            'range': [0.5, 10],
+            'color': '#ffffff',
+            'high-color': '#eef2f5',
             'space-color': '#eef2f5',
-            'horizon-blend': 0.2
+            'horizon-blend': 0.1
         });
     });
 
-    let hoverPopup = new mapboxgl.Popup({ 
-        closeButton: false, 
-        closeOnClick: false, 
-        className: 'hover-video-popup', 
-        offset: 15 
-    });
-
     map.on('load', async () => {
-        // アイコン画像（カメラ）
+        // カメラアイコン追加
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="white" stroke="#333" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="#333"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-        // カメラCSV読み込み
+        // CSV: ライブカメラ
         Papa.parse(cameraCsvUrl, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
+            download: true, header: true, skipEmptyLines: true,
             complete: (results) => {
                 const features = results.data.map(row => {
                     const dispTitle = row['タイトル'] || row['No'] || "不明";
@@ -124,29 +89,18 @@
                     if (videoUrl.includes('v=')) videoId = videoUrl.split('v=')[1].split('&')[0];
                     else if (videoUrl.includes('youtu.be/')) videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
 
-                    if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                        return {
-                            'type': 'Feature',
-                            'properties': { 'title': dispTitle, 'videoId': videoId },
-                            'geometry': { 'type': 'Point', 'coordinates': [coords[1], coords[0]] }
-                        };
+                    if (coords.length === 2 && !isNaN(coords[0])) {
+                        return { 'type': 'Feature', 'properties': { 'title': dispTitle, 'videoId': videoId }, 'geometry': { 'type': 'Point', 'coordinates': [coords[1], coords[0]] } };
                     }
                     return null;
                 }).filter(f => f !== null);
 
-                map.addSource('live-cameras', {
-                    'type': 'geojson',
-                    'data': { 'type': 'FeatureCollection', 'features': features }
-                });
-
-                map.addLayer({
-                    'id': 'camera-layer', 'type': 'symbol', 'source': 'live-cameras', 'slot': 'top',
-                    'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.6, 'icon-allow-overlap': true }
-                });
+                map.addSource('live-cameras', { 'type': 'geojson', 'data': { 'type': 'FeatureCollection', 'features': features } });
+                map.addLayer({ 'id': 'camera-layer', 'type': 'symbol', 'source': 'live-cameras', 'slot': 'top', 'layout': { 'icon-image': 'camera-custom', 'icon-size': 0.6, 'icon-allow-overlap': true } });
             }
         });
 
-        // 砂箱（3Dポリゴン）
+        // CSV: 砂箱
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -155,61 +109,26 @@
                 let sandboxData = { type: 'FeatureCollection', features: [] };
                 new Function('map', 'rawData', 'sandboxData', script + '\nupdateSandboxGraphics(map, rawData, sandboxData);')(map, res.data, sandboxData);
                 map.addSource('sunabako-source', { type: 'geojson', data: sandboxData });
-                map.addLayer({
-                    'id': 'sunabako-layer', 'type': 'fill-extrusion', 'source': 'sunabako-source', 'slot': 'top',
-                    'paint': { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': 5, 'fill-extrusion-base': 0 }
-                });
+                map.addLayer({ 'id': 'sunabako-layer', 'type': 'fill-extrusion', 'source': 'sunabako-source', 'slot': 'top', 'paint': { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': 5, 'fill-extrusion-base': 0 } });
             }
         });
 
         // インタラクション
-        map.on('mouseenter', 'camera-layer', (e) => {
-            map.getCanvas().style.cursor = 'pointer';
-            const coordinates = e.features[0].geometry.coordinates.slice();
-            const { title, videoId } = e.features[0].properties;
-            hoverPopup.setLngLat(coordinates)
-                .setHTML(`
-                    <div class="hover-video-title">${title}</div>
-                    <div style="width:180px; aspect-ratio:16/9; background:#000;">
-                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1" frameborder="0"></iframe>
-                    </div>
-                `).addTo(map);
-        });
-
-        map.on('mouseleave', 'camera-layer', () => {
-            map.getCanvas().style.cursor = '';
-            hoverPopup.remove();
-        });
-
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
             const { title, videoId } = f.properties;
-            hoverPopup.remove();
             map.flyTo({ center: f.geometry.coordinates, zoom: 18, pitch: 70 });
-            new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom' })
+            new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom', closeButton: true })
                 .setLngLat(f.geometry.coordinates)
-                .setHTML(`
-                    <div class="popup-header">🎥 ${title}</div>
-                    <div style="width:100%; aspect-ratio:16/9; background:#000;">
-                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-                    </div>
-                `).addTo(map);
+                .setHTML(`<div class="popup-header">🎥 ${title}</div><div style="width:100%; aspect-ratio:16/9; background:#000;"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`)
+                .addTo(map);
         });
 
         setTimeout(hideLoader, 1000);
     });
 
-    function hideLoader() {
-        const loader = document.getElementById('loader');
-        loader.style.opacity = '0';
-        setTimeout(() => { loader.style.visibility = 'hidden'; }, 800);
-    }
-
-    setInterval(() => {
-        const now = new Date();
-        document.getElementById('date-display').textContent = now.toLocaleDateString('ja-JP');
-        document.getElementById('time-display').textContent = now.toLocaleTimeString('ja-JP', {hour12:false});
-    }, 1000);
+    function hideLoader() { const loader = document.getElementById('loader'); loader.style.opacity = '0'; setTimeout(() => { loader.style.visibility = 'hidden'; }, 800); }
+    setInterval(() => { const now = new Date(); document.getElementById('date-display').textContent = now.toLocaleDateString('ja-JP'); document.getElementById('time-display').textContent = now.toLocaleTimeString('ja-JP', {hour12:false}); }, 1000);
 </script>
 </body>
 </html>
