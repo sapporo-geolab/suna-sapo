@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>テスト環境3</title>
+    <title>テスト4</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
@@ -16,7 +16,6 @@
         .info-panel { position: absolute; top: 15px; left: 15px; z-index: 1000; color: #333; font-family: sans-serif; text-shadow: 1px 1px 2px white; pointer-events: none; }
         #time-display { font-size: 24px; font-weight: bold; }
 
-        /* --- ホバー時のミニ映像ポップアップ --- */
         .hover-video-popup .mapboxgl-popup-content {
             background: rgba(26, 26, 26, 0.9);
             color: #fff;
@@ -26,14 +25,8 @@
             width: 180px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
-        .hover-video-title {
-            font-size: 10px;
-            padding: 4px 8px;
-            background: rgba(0,0,0,0.5);
-            text-align: center;
-        }
+        .hover-video-title { font-size: 10px; padding: 4px 8px; background: rgba(0,0,0,0.5); text-align: center; }
 
-        /* --- 画面下部の大型メインポップアップ --- */
         .live-camera-main-popup {
             position: fixed !important;
             top: auto !important;
@@ -53,25 +46,15 @@
             overflow: hidden;
             box-shadow: 0 15px 40px rgba(0,0,0,0.6);
         }
-        .live-camera-main-popup .mapboxgl-popup-close-button {
-            color: #fff;
-            font-size: 24px;
-            padding: 10px;
-            z-index: 11;
-        }
-        .popup-header {
-            padding: 10px 15px;
-            font-weight: bold;
-            font-size: 14px;
-            background: #2a2a2a;
-        }
+        .live-camera-main-popup .mapboxgl-popup-close-button { color: #fff; font-size: 24px; padding: 10px; z-index: 11; }
+        .popup-header { padding: 10px 15px; font-weight: bold; font-size: 14px; background: #2a2a2a; }
     </style>
 </head>
 <body>
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">冬のマップを起動中...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">冬モードに切り替えています...</div>
 </div>
 
 <div id="map"></div>
@@ -89,15 +72,27 @@
     const map = new mapboxgl.Map({ 
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
-        config: {
-            basemap: {
-                theme: 'winter' // システム的な冬設定
-            }
-        },
         center: initialCenter, 
-        zoom: 14, 
-        pitch: 45,
+        zoom: 15.5, // 最初から木の変化が見えやすいズーム
+        pitch: 60,
         attributionControl: false 
+    });
+
+    // スタイルロード時に冬の設定を強制適用
+    map.on('style.load', () => {
+        // テーマを冬に
+        map.setConfigProperty('basemap', 'theme', 'winter');
+        // ライトを昼（Day）に固定し、雪の反射をイメージした明るさに
+        map.setConfigProperty('basemap', 'lightPreset', 'day');
+        
+        // 遠景だけでなく、手前まで白く霧（雪）を発生させる
+        map.setFog({
+            'range': [-1, 2.5], 
+            'color': '#ffffff', 
+            'high-color': '#ffffff',
+            'space-color': '#eef2f5',
+            'horizon-blend': 0.2
+        });
     });
 
     let hoverPopup = new mapboxgl.Popup({ 
@@ -108,25 +103,13 @@
     });
 
     map.on('load', async () => {
-        // --- 冬の演出強化設定 ---
-        // 1. ライティングを「夜明け」にして冷たい空気感を出す
-        map.setConfigProperty('basemap', 'lightPreset', 'dawn');
-        
-        // 2. フォグ（霧）を設定して、遠くを吹雪のように白く霞ませる
-        map.setFog({
-            'range': [0.5, 10], 
-            'color': '#ffffff', 
-            'high-color': '#e0e8f0',
-            'space-color': '#d1e5f0',
-            'horizon-blend': 0.15
-        });
-
-        // アイコン・データ読み込み処理
+        // アイコン画像（カメラ）
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="white" stroke="#333" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="#333"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
+        // カメラCSV読み込み
         Papa.parse(cameraCsvUrl, {
             download: true,
             header: true,
@@ -163,6 +146,7 @@
             }
         });
 
+        // 砂箱（3Dポリゴン）
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -178,6 +162,7 @@
             }
         });
 
+        // インタラクション
         map.on('mouseenter', 'camera-layer', (e) => {
             map.getCanvas().style.cursor = 'pointer';
             const coordinates = e.features[0].geometry.coordinates.slice();
@@ -200,7 +185,7 @@
             const f = e.features[0];
             const { title, videoId } = f.properties;
             hoverPopup.remove();
-            map.flyTo({ center: f.geometry.coordinates, zoom: 17, pitch: 60 });
+            map.flyTo({ center: f.geometry.coordinates, zoom: 18, pitch: 70 });
             new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom' })
                 .setLngLat(f.geometry.coordinates)
                 .setHTML(`
