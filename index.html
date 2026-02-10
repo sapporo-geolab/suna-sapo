@@ -89,9 +89,16 @@
     const initialCenter = [141.3508, 43.0645]; 
     mapboxgl.accessToken = 'pk.eyJ1Ijoic2FwcG9yby1nZW9sYWIiLCJhIjoiY21rNnBtdnllMHY0ZDNmcHdudWxheXh2YyJ9.XmcyBM52az-vYC6Tigqduw';
 
-    const map = new mapboxgl.Map({ 
+const map = new mapboxgl.Map({ 
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
+        // --- ここを追記 ---
+        config: {
+            basemap: {
+                theme: 'winter'
+            }
+        },
+        // ------------------
         center: initialCenter, 
         zoom: 14, 
         pitch: 45,
@@ -227,4 +234,5 @@
 </script>
 </body>
 </html>
+
 
