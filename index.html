@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>テスト7</title>
+    <title>テスト8</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.1/mapbox-gl.js"></script>
@@ -24,7 +24,7 @@
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">マップを冬仕様に最適化中...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">マップの季節を冬に切り替えています...</div>
 </div>
 
 <div id="map"></div>
@@ -41,29 +41,30 @@
 
     const map = new mapboxgl.Map({ 
         container: 'map', 
-        style: 'mapbox://styles/mapbox/standard', // 最も安定した公式URL
+        style: 'mapbox://styles/mapbox/standard', 
         center: initialCenter, 
-        zoom: 15.5, 
+        zoom: 15, 
         pitch: 60,
         attributionControl: false
     });
 
-    // 404エラーを回避するため、スタイル読み込み完了を待ってから命令を出す
-    map.on('style.load', () => {
-        // 命令がサポートされているか確認しながら適用
-        if (map.setConfigProperty) {
+    // --- ここが「冬」にするための最重要ポイント ---
+    map.on('style.import.load', (e) => {
+        if (e.id === 'basemap') {
+            // スタイルのコンポーネントが読み込まれたタイミングで設定
             map.setConfigProperty('basemap', 'theme', 'winter');
             map.setConfigProperty('basemap', 'lightPreset', 'day');
+            
+            // 雪の霧を設定
+            map.setFog({
+                'range': [0.5, 10],
+                'color': '#ffffff',
+                'high-color': '#eef2f5',
+                'space-color': '#ffffff',
+                'horizon-blend': 0.1
+            });
+            console.log("冬の設定を適用しました");
         }
-        
-        // フォグ（霧）で雪の空気感を演出
-        map.setFog({
-            'range': [0.8, 8],
-            'color': '#ffffff',
-            'high-color': '#eef2f5',
-            'space-color': '#ffffff',
-            'horizon-blend': 0.1
-        });
     });
 
     map.on('load', async () => {
@@ -73,7 +74,7 @@
         img.onload = () => map.addImage('camera-custom', img);
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-        // カメラデータ
+        // カメラCSV読み込み
         Papa.parse(cameraCsvUrl, {
             download: true, header: true, skipEmptyLines: true,
             complete: (results) => {
@@ -96,7 +97,7 @@
             }
         });
 
-        // 砂箱データ
+        // 砂箱データ読み込み
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -109,7 +110,7 @@
             }
         });
 
-        // カメラクリック
+        // クリックでポップアップ
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
             map.flyTo({ center: f.geometry.coordinates, zoom: 18, pitch: 70 });
