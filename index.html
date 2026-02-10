@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>テスト環境2</title>
+    <title>テスト環境3</title>
     <link rel="icon" href="https://raw.githubusercontent.com/sapporo-geolab/sunahako-img/main/sunahako.png" type="image/png">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
@@ -23,7 +23,7 @@
             padding: 0;
             border-radius: 8px;
             overflow: hidden;
-            width: 180px; /* ミニサイズ */
+            width: 180px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
         .hover-video-title {
@@ -44,10 +44,7 @@
             max-width: 500px !important;
             z-index: 10002;
         }
-        /* 吹き出しの三角(tip)を消す設定 */
-        .live-camera-main-popup .mapboxgl-popup-tip {
-            display: none !important;
-        }
+        .live-camera-main-popup .mapboxgl-popup-tip { display: none !important; }
         .live-camera-main-popup .mapboxgl-popup-content {
             background: #1a1a1a;
             color: #fff;
@@ -74,7 +71,7 @@
 
 <div id="loader">
     <img id="loader-logo-img" src="https://raw.githubusercontent.com/sapporo-geolab/logo-sunasapo-img/main/logo_sunasapo.png">
-    <div style="margin-top:20px; color:#666; font-size:12px;">マップを起動中...</div>
+    <div style="margin-top:20px; color:#666; font-size:12px;">冬のマップを起動中...</div>
 </div>
 
 <div id="map"></div>
@@ -89,23 +86,20 @@
     const initialCenter = [141.3508, 43.0645]; 
     mapboxgl.accessToken = 'pk.eyJ1Ijoic2FwcG9yby1nZW9sYWIiLCJhIjoiY21rNnBtdnllMHY0ZDNmcHdudWxheXh2YyJ9.XmcyBM52az-vYC6Tigqduw';
 
-const map = new mapboxgl.Map({ 
+    const map = new mapboxgl.Map({ 
         container: 'map', 
         style: 'mapbox://styles/mapbox/standard', 
-        // --- ここを追記 ---
         config: {
             basemap: {
-                theme: 'winter'
+                theme: 'winter' // システム的な冬設定
             }
         },
-        // ------------------
         center: initialCenter, 
         zoom: 14, 
         pitch: 45,
         attributionControl: false 
     });
 
-    // ホバー用ポップアップ（映像入り）
     let hoverPopup = new mapboxgl.Popup({ 
         closeButton: false, 
         closeOnClick: false, 
@@ -114,10 +108,20 @@ const map = new mapboxgl.Map({
     });
 
     map.on('load', async () => {
-// --- ここから追記：冬仕様（雪景色）の設定 ---
-    map.setConfigProperty('basemap', 'theme', 'winter');
-    // --- 追記ここまで ---
-        // 白抜きアイコン（白背景に黒カメラ）
+        // --- 冬の演出強化設定 ---
+        // 1. ライティングを「夜明け」にして冷たい空気感を出す
+        map.setConfigProperty('basemap', 'lightPreset', 'dawn');
+        
+        // 2. フォグ（霧）を設定して、遠くを吹雪のように白く霞ませる
+        map.setFog({
+            'range': [0.5, 10], 
+            'color': '#ffffff', 
+            'high-color': '#e0e8f0',
+            'space-color': '#d1e5f0',
+            'horizon-blend': 0.15
+        });
+
+        // アイコン・データ読み込み処理
         const svg = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="white" stroke="#333" stroke-width="2"/><path d="M18 22h20a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2zm24 6l8-4v16l-8-4v-8z" fill="#333"/></svg>`;
         const img = new Image();
         img.onload = () => map.addImage('camera-custom', img);
@@ -159,7 +163,6 @@ const map = new mapboxgl.Map({
             }
         });
 
-        // 砂箱読み込み
         const sandboxCsvUrl = 'https://gist.githubusercontent.com/sapporo-geolab/ca0f9f45e8a5e2064678f14eb8e7e933/raw/33abeeab3374bc93c97d208c90056b7355c04802/h301.csv';
         Papa.parse(sandboxCsvUrl, {
             download: true, header: true, complete: async (res) => {
@@ -175,13 +178,10 @@ const map = new mapboxgl.Map({
             }
         });
 
-        // --- ホバー時の挙動（ミニプレビュー） ---
         map.on('mouseenter', 'camera-layer', (e) => {
             map.getCanvas().style.cursor = 'pointer';
             const coordinates = e.features[0].geometry.coordinates.slice();
             const { title, videoId } = e.features[0].properties;
-
-            // ミニサイズの映像を吹き出しに埋め込む
             hoverPopup.setLngLat(coordinates)
                 .setHTML(`
                     <div class="hover-video-title">${title}</div>
@@ -196,17 +196,11 @@ const map = new mapboxgl.Map({
             hoverPopup.remove();
         });
 
-        // --- クリック時の挙動（下部大型パネル） ---
         map.on('click', 'camera-layer', (e) => {
             const f = e.features[0];
             const { title, videoId } = f.properties;
-            
-            // 下部パネル表示時はホバーを消す
             hoverPopup.remove();
-
             map.flyTo({ center: f.geometry.coordinates, zoom: 17, pitch: 60 });
-            
-            // 下部パネル（三角なし）
             new mapboxgl.Popup({ className: 'live-camera-main-popup', anchor: 'bottom' })
                 .setLngLat(f.geometry.coordinates)
                 .setHTML(`
@@ -234,6 +228,3 @@ const map = new mapboxgl.Map({
 </script>
 </body>
 </html>
-
-
-
